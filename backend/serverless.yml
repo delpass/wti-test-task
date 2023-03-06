@@ -1,0 +1,184 @@
+# uncomment this to enable dashboard functionality:
+# org: delpass
+# app: wti-test-task
+
+service: wti-test-task
+frameworkVersion: '3'
+configValidationMode: error
+
+provider:
+  name: aws
+  runtime: python3.9
+
+  environment:
+    JWT_SECRET: E74Wzm6@HkTmEuqG.L*nG6ZWorRNTLWF
+
+  httpApi:
+    authorizers:
+      auth:
+        type: request
+        functionName: auth
+    cors:
+      allowedOrigins: '*'
+      allowedHeaders:
+        - Content-Type
+        - X-Amz-Date
+        - Authorization
+        - X-Api-Key
+        - X-Amz-Security-Token
+      allowCredentials: false
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchWriteItem
+          Resource: '*'
+
+
+functions:
+  index:
+    handler: src/handler.index
+    events:
+      - httpApi:
+          path: /
+          method: get
+  indexId:
+    handler: src/handler.index
+    events:
+      - httpApi:
+          path: /test/{id}
+          method: get
+  indexpost:
+    handler: src/handler.index
+    events:
+      - httpApi:
+          path: /test/{id}
+          method: post
+
+  # Auth module
+  register:
+    handler: src/auth.register
+    events:
+      - httpApi:
+          path: /auth/register
+          method: post
+
+  login:
+    handler: src/auth.login
+    events:
+      - httpApi:
+          path: /auth/login
+          method: post
+
+  # Favorites
+  favoritesList:
+    handler: src/favorites.list
+    events:
+      - httpApi:
+          path: /favorites
+          method: get
+          authorizer: auth
+
+  favoritesAdd:
+    handler: src/favorites.add
+    events:
+      - httpApi:
+          path: /favorites
+          method: post
+          authorizer: auth
+
+  favoritesDelete:
+    handler: src/favorites.delete
+    events:
+      - httpApi:
+          path: /favorites/{id}
+          method: delete
+          authorizer: auth
+
+  favoritesUpdate:
+    handler: src/favorites.update
+    events:
+      - httpApi:
+          path: /favorites/{id}
+          method: put
+          authorizer: auth
+
+  # games
+  gamesList:
+    handler: src/games.list
+    events:
+      - httpApi:
+          path: /games
+          method: get
+          authorizer: auth
+
+
+
+  # periodic tasks
+  gameListUpdater:
+    handler: src/periodic.game_list_updater
+    events:
+      # Invoke Lambda function every 10 minutes
+      - schedule: rate(10 minutes)
+
+
+  auth:
+    handler: src/auth.authorizer
+
+
+resources:
+  Resources:
+    # DynamoDB
+    usersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: users
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    gamesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: games
+        AttributeDefinitions:
+          - AttributeName: title
+            AttributeType: S
+        KeySchema:
+          - AttributeName: title
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    favoritesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: favorites
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+          - AttributeName: title
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+          - AttributeName: title
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
